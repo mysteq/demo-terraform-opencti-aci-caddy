@@ -5,6 +5,10 @@ locals {
   location_short = "westeu"
 }
 
+resource "random_id" "pad" {
+  byte_length = 2
+}
+
 resource "azurerm_resource_group" "demo" {
   name     = "rg-${local.name}-${local.environment}-${local.location_short}"
   location = local.location
@@ -57,7 +61,7 @@ resource "azurerm_key_vault" "demo" {
 }
 
 resource "azurerm_storage_account" "demo" {
-  name                             = "sa${local.name}${local.environment}${local.location_short}"
+  name                             = "st${local.name}${local.environment}${local.location_short}${random_id.pad.hex}"
   resource_group_name              = azurerm_resource_group.demo.name
   location                         = azurerm_resource_group.demo.location
   account_tier                     = "Standard"
@@ -173,6 +177,16 @@ resource "azurerm_key_vault_secret" "opencti_admin_password" {
   key_vault_id = azurerm_key_vault.demo.id
 }
 
+resource "random_uuid" "connector_id_alienvault" {
+}
+
+resource "random_uuid" "connector_id_opencti" {
+}
+
+resource "time_offset" "demo" {
+  offset_days = -30
+}
+
 resource "azurerm_container_group" "demo" {
   name                = "cg-${local.name}-${local.environment}-${local.location}"
   resource_group_name = azurerm_resource_group.demo.name
@@ -193,10 +207,12 @@ resource "azurerm_container_group" "demo" {
   }
 
   container {
-    name   = "caddy"
-    image  = "caddy"
-    cpu    = "0.5"
-    memory = "0.5"
+    name         = "caddy"
+    image        = "caddy"
+    cpu          = "0.1"
+    memory       = "0.2"
+    cpu_limit    = "0.2"
+    memory_limit = "0.2"
 
     ports {
       port     = 443
@@ -220,10 +236,12 @@ resource "azurerm_container_group" "demo" {
   }
 
   container {
-    name   = "redis"
-    image  = "redis:7.0.11"
-    cpu    = "0.5"
-    memory = "0.5"
+    name         = "redis"
+    image        = "redis:7.0.11"
+    cpu          = "0.1"
+    cpu_limit    = "0.1"
+    memory       = "0.4"
+    memory_limit = "0.4"
 
     volume {
       name                 = "aci-redis-data"
@@ -235,10 +253,12 @@ resource "azurerm_container_group" "demo" {
   }
 
   container {
-    name   = "elasticsearch"
-    image  = "docker.elastic.co/elasticsearch/elasticsearch:8.8.0"
-    cpu    = "1"
-    memory = "4"
+    name         = "elasticsearch"
+    image        = "docker.elastic.co/elasticsearch/elasticsearch:8.8.0"
+    cpu          = "1"
+    cpu_limit    = "1"
+    memory       = "4"
+    memory_limit = "4"
 
     environment_variables = {
       "ES_SETTING_DISCOVERY_TYPE"         = "single-node",
@@ -257,10 +277,13 @@ resource "azurerm_container_group" "demo" {
   }
 
   container {
-    name   = "minio"
-    image  = "minio/minio:RELEASE.2023-06-02T23-17-26Z"
-    cpu    = "0.5"
-    memory = "0.5"
+    name         = "minio"
+    image        = "minio/minio:RELEASE.2023-06-02T23-17-26Z"
+    cpu          = "0.1"
+    cpu_limit    = "0.1"
+    memory       = "0.5"
+    memory_limit = "0.5"
+
     commands = [
       "minio",
       "server",
@@ -295,10 +318,12 @@ resource "azurerm_container_group" "demo" {
   }
 
   container {
-    name   = "rabbitmq"
-    image  = "rabbitmq:3.12-management"
-    cpu    = "0.5"
-    memory = "1"
+    name         = "rabbitmq"
+    image        = "rabbitmq:3.12-management"
+    cpu          = "0.5"
+    cpu_limit    = "0.5"
+    memory       = "1"
+    memory_limit = "1"
 
     secure_environment_variables = {
       "RABBITMQ_DEFAULT_USER" = "${random_uuid.rabbitmq_default_user.result}",
@@ -319,18 +344,20 @@ resource "azurerm_container_group" "demo" {
   }
 
   container {
-    name   = "opencti"
-    image  = "opencti/platform:5.7.6"
-    cpu    = "0.5"
-    memory = "1.5"
+    name         = "opencti"
+    image        = "opencti/platform:5.7.6"
+    cpu          = "0.5"
+    cpu_limit    = "0.5"
+    memory       = "1.5"
+    memory_limit = "1.5"
 
     secure_environment_variables = {
-      "MINIO__ACCESS_KEY"  = "${random_uuid.minio_root_user.result}",
-      "MINIO__SECRET_KEY"  = "${random_password.minio_root_password.result}",
-      "RABBITMQ__USERNAME" = "${random_uuid.rabbitmq_default_user.result}",
-      "RABBITMQ__PASSWORD" = "${random_password.rabbitmq_default_password.result}",
-      "APP__ADMIN__TOKEN"  = "${random_uuid.opencti_token.result}",
-      "APP__ADMIN__PASSWORD"  = "${random_password.opencti_admin_password.result}",
+      "MINIO__ACCESS_KEY"    = "${random_uuid.minio_root_user.result}",
+      "MINIO__SECRET_KEY"    = "${random_password.minio_root_password.result}",
+      "RABBITMQ__USERNAME"   = "${random_uuid.rabbitmq_default_user.result}",
+      "RABBITMQ__PASSWORD"   = "${random_password.rabbitmq_default_password.result}",
+      "APP__ADMIN__TOKEN"    = "${random_uuid.opencti_token.result}",
+      "APP__ADMIN__PASSWORD" = "${random_password.opencti_admin_password.result}",
     }
 
     environment_variables = {
@@ -356,10 +383,12 @@ resource "azurerm_container_group" "demo" {
   }
 
   container {
-    name   = "worker1"
-    image  = "opencti/worker:5.7.6"
-    cpu    = "0.1"
-    memory = "0.2"
+    name         = "worker1"
+    image        = "opencti/worker:5.7.6"
+    cpu          = "0.1"
+    cpu_limit    = "0.1"
+    memory       = "0.2"
+    memory_limit = "0.2"
 
     secure_environment_variables = {
       "OPENCTI_TOKEN" = "${random_uuid.opencti_token.result}",
@@ -368,6 +397,88 @@ resource "azurerm_container_group" "demo" {
     environment_variables = {
       "OPENCTI_URL"      = "http://localhost:8080",
       "WORKER_LOG_LEVEL" = "info",
+    }
+  }
+
+  container {
+    name         = "worker2"
+    image        = "opencti/worker:5.7.6"
+    cpu          = "0.1"
+    cpu_limit    = "0.1"
+    memory       = "0.2"
+    memory_limit = "0.2"
+
+    secure_environment_variables = {
+      "OPENCTI_TOKEN" = "${random_uuid.opencti_token.result}",
+    }
+
+    environment_variables = {
+      "OPENCTI_URL"      = "http://localhost:8080",
+      "WORKER_LOG_LEVEL" = "info",
+    }
+  }
+
+  container {
+    name         = "connector-alientvault"
+    image        = "opencti/connector-alienvault:5.7.6"
+    cpu          = "0.1"
+    cpu_limit    = "0.2"
+    memory       = "0.2"
+    memory_limit = "0.2"
+
+    secure_environment_variables = {
+      "OPENCTI_TOKEN"      = "${random_uuid.opencti_token.result}",
+      "ALIENVAULT_API_KEY" = "${var.alienvault_api_key}"
+    }
+
+    environment_variables = {
+      "OPENCTI_URL"                                 = "http://localhost:8080",
+      "CONNECTOR_ID"                                = "${random_uuid.connector_id_alienvault.result}",
+      "CONNECTOR_TYPE"                              = "EXTERNAL_IMPORT",
+      "CONNECTOR_NAME"                              = "AlienVault",
+      "CONNECTOR_SCOPE"                             = "alienvault",
+      "CONNECTOR_CONFIDENCE_LEVEL"                  = "15",
+      "CONNECTOR_UPDATE_EXISTING_DATA"              = "false",
+      "CONNECTOR_LOG_LEVEL"                         = "info",
+      "ALIENVAULT_BASE_URL"                         = "https://otx.alienvault.com",
+      "ALIENVAULT_TLP"                              = "White",
+      "ALIENVAULT_CREATE_OBSERVABLES"               = "true",
+      "ALIENVAULT_CREATE_INDICATORS"                = "true",
+      "ALIENVAULT_PULSE_START_TIMESTAMP"            = "${replace(time_offset.demo.rfc3339, "Z", "")}",
+      "ALIENVAULT_REPORT_TYPE"                      = "threat-report",
+      "ALIENVAULT_REPORT_STATUS"                    = "New",
+      "ALIENVAULT_GUESS_MALWARE"                    = "false",
+      "ALIENVAULT_GUESS_CVE"                        = "false",
+      "ALIENVAULT_EXCLUDED_PULSE_INDICATOR_TYPES"   = "FileHash-MD5,FileHash-SHA1",
+      "ALIENVAULT_ENABLE_RELATIONSHIPS"             = "true",
+      "ALIENVAULT_ENABLE_ATTACK_PATTERNS_INDICATES" = "true",
+      "ALIENVAULT_INTERVAL_SEC"                     = "1800",
+    }
+  }
+
+  container {
+    name         = "connector-opencti"
+    image        = "opencti/connector-opencti:5.7.6"
+    cpu          = "0.1"
+    cpu_limit    = "0.2"
+    memory       = "0.2"
+    memory_limit = "0.2"
+
+    secure_environment_variables = {
+      "OPENCTI_TOKEN"      = "${random_uuid.opencti_token.result}",
+    }
+
+    environment_variables = {
+      "OPENCTI_URL"                                 = "http://localhost:8080",
+      "CONNECTOR_ID"                                = "${random_uuid.connector_id_opencti.result}",
+      "CONNECTOR_TYPE"                              = "EXTERNAL_IMPORT",
+      "CONNECTOR_NAME"                              = "OpenCTI Datasets",
+      "CONNECTOR_SCOPE"                             = "marking-definition,identity,location",
+      "CONNECTOR_CONFIDENCE_LEVEL"                  = "90",
+      "CONNECTOR_UPDATE_EXISTING_DATA"              = "true",
+      "CONNECTOR_LOG_LEVEL"                         = "info",
+      "CONFIG_INTERVAL"                             = "7",
+      "CONFIG_REMOVE_CREATOR"                       = "false",
     }
   }
 
