@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.56.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 2.39.0"
+    }
     null = {
       source  = "hashicorp/null"
       version = "~> 3.2.1"
@@ -32,5 +36,5 @@ provider "azurerm" {
       prevent_deletion_if_contains_resources = false
     }
   }
-  subscription_id = "ad3a592d-2f32-4013-8b6a-a290a0aafed2"
+  subscription_id = "49a743cb-1b0b-4bbd-9986-f9fcf513526f"
 }

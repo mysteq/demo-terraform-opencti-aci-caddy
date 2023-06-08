@@ -1,8 +1,9 @@
 locals {
-  name           = "opencti"
+  name           = "opencti2"
   environment    = "demo"
   location       = "westeurope"
   location_short = "westeu"
+  rotation_days  = 30
 }
 
 resource "random_id" "pad" {
@@ -15,6 +16,43 @@ resource "azurerm_resource_group" "demo" {
 }
 
 data "azurerm_client_config" "current" {}
+
+data "azuread_client_config" "current" {}
+
+resource "azuread_application" "demo" {
+  display_name = "Landing Zone - Microsoft Sentinel Managed Service - OpenCTI"
+  feature_tags {
+    enterprise = true
+    gallery    = false
+    hide       = true
+  }
+
+  web {
+    redirect_uris = [
+      "https://${local.name}-${local.environment}-${random_id.pad.hex}.westeurope.azurecontainer.io/auth/oic/callback",
+      "https://opencti-dev.4t2.no/auth/oic/callback",
+    ]
+    implicit_grant {
+      access_token_issuance_enabled = false
+      id_token_issuance_enabled     = false
+    }
+  }
+
+  sign_in_audience = "AzureADMyOrg"
+  owners = [
+    data.azuread_client_config.current.object_id
+  ]
+
+  required_resource_access {
+    resource_app_id = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
+
+    resource_access {
+      id   = "e1fe6dd8-ba31-4d61-89e7-88639da4683d" # User.Read
+      type = "Scope"
+    }
+
+  }
+}
 
 resource "azurerm_key_vault" "demo" {
   name                        = "kv-${local.name}-${local.environment}-${local.location_short}"
@@ -58,6 +96,31 @@ resource "azurerm_key_vault" "demo" {
       "Get",
     ]
   }
+}
+
+resource "time_rotating" "schedule" {
+  rotation_days = local.rotation_days
+}
+
+resource "azuread_application_password" "key" {
+  display_name          = "Key Vault '${azurerm_key_vault.demo.name}' in subscriptionid '${data.azurerm_client_config.current.subscription_id}'"
+  application_object_id = azuread_application.demo.object_id
+  end_date_relative     = "${local.rotation_days * 24}h"
+  rotate_when_changed = {
+    rotation = time_rotating.schedule.id
+  }
+}
+
+resource "azurerm_key_vault_secret" "clientid" {
+  name         = "OpenCTI-client-id"
+  value        = azuread_application.demo.application_id
+  key_vault_id = azurerm_key_vault.demo.id
+}
+
+resource "azurerm_key_vault_secret" "clientsecret" {
+  name         = "OpenCTI-client-secret"
+  value        = azuread_application_password.key.value
+  key_vault_id = azurerm_key_vault.demo.id
 }
 
 resource "azurerm_storage_account" "demo" {
@@ -192,7 +255,7 @@ resource "azurerm_container_group" "demo" {
   resource_group_name = azurerm_resource_group.demo.name
   location            = azurerm_resource_group.demo.location
   ip_address_type     = "Public"
-  dns_name_label      = "${local.name}-${local.environment}"
+  dns_name_label      = "${local.name}-${local.environment}-${random_id.pad.hex}"
   os_type             = "Linux"
   restart_policy      = "Always"
 
@@ -232,7 +295,7 @@ resource "azurerm_container_group" "demo" {
       share_name           = azurerm_storage_share.demo_caddy.name
     }
 
-    commands = ["caddy", "reverse-proxy", "--from", "${local.name}-${local.environment}.westeurope.azurecontainer.io", "--to", "localhost:8080", "--internal-certs"]
+    commands = ["caddy", "reverse-proxy", "--from", "${local.name}-${local.environment}-${random_id.pad.hex}.westeurope.azurecontainer.io", "--to", "localhost:8080"]
   }
 
   container {
@@ -352,33 +415,39 @@ resource "azurerm_container_group" "demo" {
     memory_limit = "1.5"
 
     secure_environment_variables = {
-      "MINIO__ACCESS_KEY"    = "${random_uuid.minio_root_user.result}",
-      "MINIO__SECRET_KEY"    = "${random_password.minio_root_password.result}",
-      "RABBITMQ__USERNAME"   = "${random_uuid.rabbitmq_default_user.result}",
-      "RABBITMQ__PASSWORD"   = "${random_password.rabbitmq_default_password.result}",
-      "APP__ADMIN__TOKEN"    = "${random_uuid.opencti_token.result}",
-      "APP__ADMIN__PASSWORD" = "${random_password.opencti_admin_password.result}",
+      "MINIO__ACCESS_KEY"                        = "${random_uuid.minio_root_user.result}",
+      "MINIO__SECRET_KEY"                        = "${random_password.minio_root_password.result}",
+      "RABBITMQ__USERNAME"                       = "${random_uuid.rabbitmq_default_user.result}",
+      "RABBITMQ__PASSWORD"                       = "${random_password.rabbitmq_default_password.result}",
+      "APP__ADMIN__TOKEN"                        = "${random_uuid.opencti_token.result}",
+      "APP__ADMIN__PASSWORD"                     = "${random_password.opencti_admin_password.result}",
+      "PROVIDERS__OPENID__CONFIG__ISSUER"        = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0",
+      "PROVIDERS__OPENID__CONFIG__CLIENT_ID"     = "${azuread_application.demo.application_id}",
+      "PROVIDERS__OPENID__CONFIG__CLIENT_SECRET" = "${azuread_application_password.key.value}",
+      "PROVIDERS__OPENID__CONFIG__REDIRECT_URIS" = "[\"https://${local.name}-${local.environment}-${random_id.pad.hex}.westeurope.azurecontainer.io/auth/oic/callback\"]",
     }
 
     environment_variables = {
-      "NODE_OPTIONS"               = "--max-old-space-size=8096",
-      "APP__PORT"                  = "8080",
-      "APP__BASE_URL"              = "https://${local.name}-${local.environment}.westeurope.azurecontainer.io",
-      "APP__ADMIN__EMAIL"          = "admin@opencti.io",
-      "APP__APP_LOGS__LOGS_LEVEL"  = "info",
-      "REDIS__HOSTNAME"            = "localhost",
-      "REDIS__PORT"                = "6379",
-      "ELASTICSEARCH__URL"         = "http://localhost:9200",
-      "MINIO__ENDPOINT"            = "localhost",
-      "MINIO__PORT"                = "9000",
-      "MINIO__USE_SSL"             = "false",
-      "RABBITMQ__HOSTNAME"         = "localhost",
-      "RABBITMQ__PORT"             = "5672",
-      "RABBITMQ__PORT_MANAGEMENT"  = "15672",
-      "RABBITMQ__MANAGEMENT_SSL"   = "false",
-      "SMTP__HOSTNAME"             = "",
-      "SMTP__PORT"                 = "25",
-      "PROVIDERS__LOCAL__STRATEGY" = "LocalStrategy",
+      "NODE_OPTIONS"                     = "--max-old-space-size=8096",
+      "APP__PORT"                        = "8080",
+      "APP__BASE_URL"                    = "https://${local.name}-${local.environment}-${random_id.pad.hex}.westeurope.azurecontainer.io",
+      "APP__ADMIN__EMAIL"                = "admin@opencti.io",
+      "APP__APP_LOGS__LOGS_LEVEL"        = "info",
+      "REDIS__HOSTNAME"                  = "localhost",
+      "REDIS__PORT"                      = "6379",
+      "ELASTICSEARCH__URL"               = "http://localhost:9200",
+      "MINIO__ENDPOINT"                  = "localhost",
+      "MINIO__PORT"                      = "9000",
+      "MINIO__USE_SSL"                   = "false",
+      "RABBITMQ__HOSTNAME"               = "localhost",
+      "RABBITMQ__PORT"                   = "5672",
+      "RABBITMQ__PORT_MANAGEMENT"        = "15672",
+      "RABBITMQ__MANAGEMENT_SSL"         = "false",
+      "SMTP__HOSTNAME"                   = "",
+      "SMTP__PORT"                       = "25",
+      "PROVIDERS__LOCAL__STRATEGY"       = "LocalStrategy",
+      "PROVIDERS__OPENID__STRATEGY"      = "OpenIDConnectStrategy",
+      "PROVIDERS__OPENID__CONFIG__LABEL" = "Login with OpenID",
     }
   }
 
@@ -465,20 +534,20 @@ resource "azurerm_container_group" "demo" {
     memory_limit = "0.2"
 
     secure_environment_variables = {
-      "OPENCTI_TOKEN"      = "${random_uuid.opencti_token.result}",
+      "OPENCTI_TOKEN" = "${random_uuid.opencti_token.result}",
     }
 
     environment_variables = {
-      "OPENCTI_URL"                                 = "http://localhost:8080",
-      "CONNECTOR_ID"                                = "${random_uuid.connector_id_opencti.result}",
-      "CONNECTOR_TYPE"                              = "EXTERNAL_IMPORT",
-      "CONNECTOR_NAME"                              = "OpenCTI Datasets",
-      "CONNECTOR_SCOPE"                             = "marking-definition,identity,location",
-      "CONNECTOR_CONFIDENCE_LEVEL"                  = "90",
-      "CONNECTOR_UPDATE_EXISTING_DATA"              = "true",
-      "CONNECTOR_LOG_LEVEL"                         = "info",
-      "CONFIG_INTERVAL"                             = "7",
-      "CONFIG_REMOVE_CREATOR"                       = "false",
+      "OPENCTI_URL"                    = "http://localhost:8080",
+      "CONNECTOR_ID"                   = "${random_uuid.connector_id_opencti.result}",
+      "CONNECTOR_TYPE"                 = "EXTERNAL_IMPORT",
+      "CONNECTOR_NAME"                 = "OpenCTI Datasets",
+      "CONNECTOR_SCOPE"                = "marking-definition,identity,location",
+      "CONNECTOR_CONFIDENCE_LEVEL"     = "90",
+      "CONNECTOR_UPDATE_EXISTING_DATA" = "true",
+      "CONNECTOR_LOG_LEVEL"            = "info",
+      "CONFIG_INTERVAL"                = "7",
+      "CONFIG_REMOVE_CREATOR"          = "false",
     }
   }
 
