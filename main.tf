@@ -555,3 +555,7 @@ resource "azurerm_container_group" "opencti" {
     environment = local.environment
   }
 }
+
+output "opencti_url" {
+  value = "https://${azurerm_container_group.opencti.fqdn}"
+}
