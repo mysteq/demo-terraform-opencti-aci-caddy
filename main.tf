@@ -410,9 +410,9 @@ resource "azurerm_container_group" "opencti" {
     name         = "opencti"
     image        = "opencti/platform:5.7.6"
     cpu          = "0.5"
-    cpu_limit    = "0.5"
+    cpu_limit    = "1"
     memory       = "1.5"
-    memory_limit = "1.5"
+    memory_limit = "2"
 
     secure_environment_variables = {
       "MINIO__ACCESS_KEY"                        = "${random_uuid.minio_root_user.result}",
@@ -454,8 +454,8 @@ resource "azurerm_container_group" "opencti" {
   container {
     name         = "worker1"
     image        = "opencti/worker:5.7.6"
-    cpu          = "0.1"
-    cpu_limit    = "0.1"
+    cpu          = "0.2"
+    cpu_limit    = "0.2"
     memory       = "0.2"
     memory_limit = "0.2"
 
@@ -472,8 +472,26 @@ resource "azurerm_container_group" "opencti" {
   container {
     name         = "worker2"
     image        = "opencti/worker:5.7.6"
-    cpu          = "0.1"
-    cpu_limit    = "0.1"
+    cpu          = "0.2"
+    cpu_limit    = "0.2"
+    memory       = "0.2"
+    memory_limit = "0.2"
+
+    secure_environment_variables = {
+      "OPENCTI_TOKEN" = "${random_uuid.opencti_token.result}",
+    }
+
+    environment_variables = {
+      "OPENCTI_URL"      = "http://localhost:8080",
+      "WORKER_LOG_LEVEL" = "info",
+    }
+  }
+
+  container {
+    name         = "worker3"
+    image        = "opencti/worker:5.7.6"
+    cpu          = "0.2"
+    cpu_limit    = "0.2"
     memory       = "0.2"
     memory_limit = "0.2"
 
@@ -493,7 +511,7 @@ resource "azurerm_container_group" "opencti" {
     cpu          = "0.1"
     cpu_limit    = "0.2"
     memory       = "0.2"
-    memory_limit = "0.2"
+    memory_limit = "0.5"
 
     secure_environment_variables = {
       "OPENCTI_TOKEN"      = "${random_uuid.opencti_token.result}",
@@ -531,7 +549,7 @@ resource "azurerm_container_group" "opencti" {
     cpu          = "0.1"
     cpu_limit    = "0.2"
     memory       = "0.2"
-    memory_limit = "0.2"
+    memory_limit = "0.5"
 
     secure_environment_variables = {
       "OPENCTI_TOKEN" = "${random_uuid.opencti_token.result}",
