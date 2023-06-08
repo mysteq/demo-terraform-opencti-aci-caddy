@@ -1,6 +1,6 @@
 locals {
-  name           = "opencti2"
-  environment    = "demo"
+  name           = "opencti"
+  environment    = "dev"
   location       = "westeurope"
   location_short = "westeu"
   rotation_days  = 30
@@ -10,7 +10,7 @@ resource "random_id" "pad" {
   byte_length = 2
 }
 
-resource "azurerm_resource_group" "demo" {
+resource "azurerm_resource_group" "opencti" {
   name     = "rg-${local.name}-${local.environment}-${local.location_short}"
   location = local.location
 }
@@ -19,7 +19,7 @@ data "azurerm_client_config" "current" {}
 
 data "azuread_client_config" "current" {}
 
-resource "azuread_application" "demo" {
+resource "azuread_application" "opencti" {
   display_name = "Landing Zone - Microsoft Sentinel Managed Service - OpenCTI"
   feature_tags {
     enterprise = true
@@ -54,10 +54,10 @@ resource "azuread_application" "demo" {
   }
 }
 
-resource "azurerm_key_vault" "demo" {
+resource "azurerm_key_vault" "opencti" {
   name                        = "kv-${local.name}-${local.environment}-${local.location_short}"
-  location                    = azurerm_resource_group.demo.location
-  resource_group_name         = azurerm_resource_group.demo.name
+  location                    = azurerm_resource_group.opencti.location
+  resource_group_name         = azurerm_resource_group.opencti.name
   enabled_for_disk_encryption = true
   tenant_id                   = data.azurerm_client_config.current.tenant_id
   soft_delete_retention_days  = 7
@@ -103,8 +103,8 @@ resource "time_rotating" "schedule" {
 }
 
 resource "azuread_application_password" "key" {
-  display_name          = "Key Vault '${azurerm_key_vault.demo.name}' in subscriptionid '${data.azurerm_client_config.current.subscription_id}'"
-  application_object_id = azuread_application.demo.object_id
+  display_name          = "Key Vault '${azurerm_key_vault.opencti.name}' in subscriptionid '${data.azurerm_client_config.current.subscription_id}'"
+  application_object_id = azuread_application.opencti.object_id
   end_date_relative     = "${local.rotation_days * 24}h"
   rotate_when_changed = {
     rotation = time_rotating.schedule.id
@@ -113,20 +113,20 @@ resource "azuread_application_password" "key" {
 
 resource "azurerm_key_vault_secret" "clientid" {
   name         = "OpenCTI-client-id"
-  value        = azuread_application.demo.application_id
-  key_vault_id = azurerm_key_vault.demo.id
+  value        = azuread_application.opencti.application_id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "azurerm_key_vault_secret" "clientsecret" {
   name         = "OpenCTI-client-secret"
   value        = azuread_application_password.key.value
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
-resource "azurerm_storage_account" "demo" {
+resource "azurerm_storage_account" "opencti" {
   name                             = "st${local.name}${local.environment}${local.location_short}${random_id.pad.hex}"
-  resource_group_name              = azurerm_resource_group.demo.name
-  location                         = azurerm_resource_group.demo.location
+  resource_group_name              = azurerm_resource_group.opencti.name
+  location                         = azurerm_resource_group.opencti.location
   account_tier                     = "Standard"
   account_replication_type         = "LRS"
   enable_https_traffic_only        = true
@@ -135,33 +135,33 @@ resource "azurerm_storage_account" "demo" {
   cross_tenant_replication_enabled = false
 }
 
-resource "azurerm_storage_share" "demo_caddy" {
+resource "azurerm_storage_share" "opencti_caddy" {
   name                 = "aci-caddy-data"
-  storage_account_name = azurerm_storage_account.demo.name
+  storage_account_name = azurerm_storage_account.opencti.name
   quota                = 50
 }
 
-resource "azurerm_storage_share" "demo_redis" {
+resource "azurerm_storage_share" "opencti_redis" {
   name                 = "aci-redis-data"
-  storage_account_name = azurerm_storage_account.demo.name
+  storage_account_name = azurerm_storage_account.opencti.name
   quota                = 50
 }
 
-resource "azurerm_storage_share" "demo_es" {
+resource "azurerm_storage_share" "opencti_es" {
   name                 = "aci-es-data"
-  storage_account_name = azurerm_storage_account.demo.name
+  storage_account_name = azurerm_storage_account.opencti.name
   quota                = 50
 }
 
-resource "azurerm_storage_share" "demo_minio" {
+resource "azurerm_storage_share" "opencti_minio" {
   name                 = "aci-minio-data"
-  storage_account_name = azurerm_storage_account.demo.name
+  storage_account_name = azurerm_storage_account.opencti.name
   quota                = 50
 }
 
-resource "azurerm_storage_share" "demo_rabbitmq" {
+resource "azurerm_storage_share" "opencti_rabbitmq" {
   name                 = "aci-rabbitmq-data"
-  storage_account_name = azurerm_storage_account.demo.name
+  storage_account_name = azurerm_storage_account.opencti.name
   quota                = 50
 }
 
@@ -186,13 +186,13 @@ resource "random_password" "minio_root_password" {
 resource "azurerm_key_vault_secret" "minio_root_user" {
   name         = "minio-root-user"
   value        = random_uuid.minio_root_user.result
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "azurerm_key_vault_secret" "minio_root_password" {
   name         = "minio-root-password"
   value        = random_password.minio_root_password.result
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "random_uuid" "rabbitmq_default_user" {
@@ -213,31 +213,31 @@ resource "random_password" "opencti_admin_password" {
 resource "azurerm_key_vault_secret" "rabbitmq_default_user" {
   name         = "rabbitmq-default-user"
   value        = random_uuid.rabbitmq_default_user.result
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "azurerm_key_vault_secret" "rabbitmq_default_password" {
   name         = "rabbitmq-default-password"
   value        = random_password.rabbitmq_default_password.result
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "azurerm_key_vault_secret" "erlang_cookie" {
   name         = "erlang-cookie"
   value        = random_password.erlang_cookie.result
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "azurerm_key_vault_secret" "opencti_token" {
   name         = "opencti-token"
   value        = random_uuid.opencti_token.result
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "azurerm_key_vault_secret" "opencti_admin_password" {
   name         = "opencti-admin-password"
   value        = random_password.opencti_admin_password.result
-  key_vault_id = azurerm_key_vault.demo.id
+  key_vault_id = azurerm_key_vault.opencti.id
 }
 
 resource "random_uuid" "connector_id_alienvault" {
@@ -246,14 +246,14 @@ resource "random_uuid" "connector_id_alienvault" {
 resource "random_uuid" "connector_id_opencti" {
 }
 
-resource "time_offset" "demo" {
+resource "time_offset" "opencti" {
   offset_days = -30
 }
 
-resource "azurerm_container_group" "demo" {
+resource "azurerm_container_group" "opencti" {
   name                = "cg-${local.name}-${local.environment}-${local.location}"
-  resource_group_name = azurerm_resource_group.demo.name
-  location            = azurerm_resource_group.demo.location
+  resource_group_name = azurerm_resource_group.opencti.name
+  location            = azurerm_resource_group.opencti.location
   ip_address_type     = "Public"
   dns_name_label      = "${local.name}-${local.environment}-${random_id.pad.hex}"
   os_type             = "Linux"
@@ -290,9 +290,9 @@ resource "azurerm_container_group" "demo" {
     volume {
       name                 = "aci-caddy-data"
       mount_path           = "/data"
-      storage_account_name = azurerm_storage_account.demo.name
-      storage_account_key  = azurerm_storage_account.demo.primary_access_key
-      share_name           = azurerm_storage_share.demo_caddy.name
+      storage_account_name = azurerm_storage_account.opencti.name
+      storage_account_key  = azurerm_storage_account.opencti.primary_access_key
+      share_name           = azurerm_storage_share.opencti_caddy.name
     }
 
     commands = ["caddy", "reverse-proxy", "--from", "${local.name}-${local.environment}-${random_id.pad.hex}.westeurope.azurecontainer.io", "--to", "localhost:8080"]
@@ -309,9 +309,9 @@ resource "azurerm_container_group" "demo" {
     volume {
       name                 = "aci-redis-data"
       mount_path           = "/data"
-      storage_account_name = azurerm_storage_account.demo.name
-      storage_account_key  = azurerm_storage_account.demo.primary_access_key
-      share_name           = azurerm_storage_share.demo_redis.name
+      storage_account_name = azurerm_storage_account.opencti.name
+      storage_account_key  = azurerm_storage_account.opencti.primary_access_key
+      share_name           = azurerm_storage_share.opencti_redis.name
     }
   }
 
@@ -333,9 +333,9 @@ resource "azurerm_container_group" "demo" {
     volume {
       name                 = "aci-es-data"
       mount_path           = "/usr/share/elasticsearch/data"
-      storage_account_name = azurerm_storage_account.demo.name
-      storage_account_key  = azurerm_storage_account.demo.primary_access_key
-      share_name           = azurerm_storage_share.demo_es.name
+      storage_account_name = azurerm_storage_account.opencti.name
+      storage_account_key  = azurerm_storage_account.opencti.primary_access_key
+      share_name           = azurerm_storage_share.opencti_es.name
     }
   }
 
@@ -374,9 +374,9 @@ resource "azurerm_container_group" "demo" {
     volume {
       name                 = "aci-minio-data"
       mount_path           = "/data"
-      storage_account_name = azurerm_storage_account.demo.name
-      storage_account_key  = azurerm_storage_account.demo.primary_access_key
-      share_name           = azurerm_storage_share.demo_minio.name
+      storage_account_name = azurerm_storage_account.opencti.name
+      storage_account_key  = azurerm_storage_account.opencti.primary_access_key
+      share_name           = azurerm_storage_share.opencti_minio.name
     }
   }
 
@@ -400,9 +400,9 @@ resource "azurerm_container_group" "demo" {
     volume {
       name                 = "aci-rabbitmq-data"
       mount_path           = "/var/lib/rabbitmq"
-      storage_account_name = azurerm_storage_account.demo.name
-      storage_account_key  = azurerm_storage_account.demo.primary_access_key
-      share_name           = azurerm_storage_share.demo_rabbitmq.name
+      storage_account_name = azurerm_storage_account.opencti.name
+      storage_account_key  = azurerm_storage_account.opencti.primary_access_key
+      share_name           = azurerm_storage_share.opencti_rabbitmq.name
     }
   }
 
@@ -422,7 +422,7 @@ resource "azurerm_container_group" "demo" {
       "APP__ADMIN__TOKEN"                        = "${random_uuid.opencti_token.result}",
       "APP__ADMIN__PASSWORD"                     = "${random_password.opencti_admin_password.result}",
       "PROVIDERS__OPENID__CONFIG__ISSUER"        = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0",
-      "PROVIDERS__OPENID__CONFIG__CLIENT_ID"     = "${azuread_application.demo.application_id}",
+      "PROVIDERS__OPENID__CONFIG__CLIENT_ID"     = "${azuread_application.opencti.application_id}",
       "PROVIDERS__OPENID__CONFIG__CLIENT_SECRET" = "${azuread_application_password.key.value}",
       "PROVIDERS__OPENID__CONFIG__REDIRECT_URIS" = "[\"https://${local.name}-${local.environment}-${random_id.pad.hex}.westeurope.azurecontainer.io/auth/oic/callback\"]",
     }
@@ -513,7 +513,7 @@ resource "azurerm_container_group" "demo" {
       "ALIENVAULT_TLP"                              = "White",
       "ALIENVAULT_CREATE_OBSERVABLES"               = "true",
       "ALIENVAULT_CREATE_INDICATORS"                = "true",
-      "ALIENVAULT_PULSE_START_TIMESTAMP"            = "${replace(time_offset.demo.rfc3339, "Z", "")}",
+      "ALIENVAULT_PULSE_START_TIMESTAMP"            = "${replace(time_offset.opencti.rfc3339, "Z", "")}",
       "ALIENVAULT_REPORT_TYPE"                      = "threat-report",
       "ALIENVAULT_REPORT_STATUS"                    = "New",
       "ALIENVAULT_GUESS_MALWARE"                    = "false",
