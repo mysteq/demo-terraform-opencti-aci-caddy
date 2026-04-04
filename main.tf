@@ -129,40 +129,40 @@ resource "azurerm_storage_account" "opencti" {
   location                         = azurerm_resource_group.opencti.location
   account_tier                     = "Standard"
   account_replication_type         = "LRS"
-  enable_https_traffic_only        = true
+  https_traffic_only_enabled       = true
   allow_nested_items_to_be_public  = false
   min_tls_version                  = "TLS1_2"
   cross_tenant_replication_enabled = false
 }
 
 resource "azurerm_storage_share" "opencti_caddy" {
-  name                 = "aci-caddy-data"
-  storage_account_name = azurerm_storage_account.opencti.name
-  quota                = 50
+  name               = "aci-caddy-data"
+  storage_account_id = azurerm_storage_account.opencti.id
+  quota              = 50
 }
 
 resource "azurerm_storage_share" "opencti_redis" {
-  name                 = "aci-redis-data"
-  storage_account_name = azurerm_storage_account.opencti.name
-  quota                = 50
+  name               = "aci-redis-data"
+  storage_account_id = azurerm_storage_account.opencti.id
+  quota              = 50
 }
 
 resource "azurerm_storage_share" "opencti_es" {
-  name                 = "aci-es-data"
-  storage_account_name = azurerm_storage_account.opencti.name
-  quota                = 50
+  name               = "aci-es-data"
+  storage_account_id = azurerm_storage_account.opencti.id
+  quota              = 50
 }
 
 resource "azurerm_storage_share" "opencti_minio" {
-  name                 = "aci-minio-data"
-  storage_account_name = azurerm_storage_account.opencti.name
-  quota                = 50
+  name               = "aci-minio-data"
+  storage_account_id = azurerm_storage_account.opencti.id
+  quota              = 50
 }
 
 resource "azurerm_storage_share" "opencti_rabbitmq" {
-  name                 = "aci-rabbitmq-data"
-  storage_account_name = azurerm_storage_account.opencti.name
-  quota                = 50
+  name               = "aci-rabbitmq-data"
+  storage_account_id = azurerm_storage_account.opencti.id
+  quota              = 50
 }
 
 resource "random_uuid" "opencti_token" {
