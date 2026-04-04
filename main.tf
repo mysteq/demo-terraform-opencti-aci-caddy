@@ -103,9 +103,9 @@ resource "time_rotating" "schedule" {
 }
 
 resource "azuread_application_password" "key" {
-  display_name          = "Key Vault '${azurerm_key_vault.opencti.name}' in subscriptionid '${data.azurerm_client_config.current.subscription_id}'"
-  application_object_id = azuread_application.opencti.object_id
-  end_date_relative     = "${local.rotation_days * 24}h"
+  display_name   = "Key Vault '${azurerm_key_vault.opencti.name}' in subscriptionid '${data.azurerm_client_config.current.subscription_id}'"
+  application_id = azuread_application.opencti.id
+  end_date       = timeadd(time_rotating.schedule.id, "${local.rotation_days * 24}h")
   rotate_when_changed = {
     rotation = time_rotating.schedule.id
   }
