@@ -2,14 +2,24 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
+    rebase-strategy: disabled
     directory: "/"
     schedule:
       interval: "monthly"
-      cooldown:
-        default-days: 7
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: 
+          - '*'
   - package-ecosystem: "terraform"
-    directory: "/"
+    rebase-strategy: disabled
+    directory: "/" # Location of package manifests
+    groups:
+      terraform:
+        patterns: 
+          - '*'
     schedule:
       interval: "monthly"
-      cooldown:
-        default-days: 7
+    cooldown:
+      default-days: 7
